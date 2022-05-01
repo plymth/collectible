@@ -43,6 +43,8 @@ blueprint! {
         collectible_nfts: Vault,
         /// A mapping of collectible proof -> collectible nft to verify ownership
         collectible_proofs: HashMap<NonFungibleId, NonFungibleId>,
+        /// A mapping of collectible member -> collectible member username
+        collectible_members: HashMap<NonFungibleId, String>,
         /// A vault that holds all xrd payments received 
         collected_xrd: Vault,
         /// A vault that holds all claimable xrd
@@ -84,6 +86,7 @@ blueprint! {
                 collectible_proof_resource_address,
                 collectible_nfts: Vault::new(collectible_nft_resource_address),
                 collectible_proofs: HashMap::new(),
+                collectible_members: HashMap::new(),
                 collected_xrd: Vault::new(RADIX_TOKEN),
                 claimable_xrd: Vault::new(RADIX_TOKEN),
                 collectible_fee: dec!("0.025")
@@ -104,6 +107,13 @@ blueprint! {
                 collectible_member_resource_manager.mint_non_fungible(&NonFungibleId::random(), CollectibleMember{ username, avatar })
             });
 
+            // Get the badge id
+            let badge_id = badge.non_fungible::<CollectibleMember>().id();
+
+            // Add new member to collectible member hashmap
+            self.collectible_members.insert(badge_id, username);
+
+            // Return membership badge
             badge
         }
 
@@ -216,16 +226,42 @@ blueprint! {
             collectible_nft_id: NonFungibleId,
             mut payment: Bucket
         ) -> (Bucket, Bucket) {
-            // let nft_data: CollectibleNft = self.collectible_minter.authorize(|| {
-            //     let collectible_member_resource_manager: &ResourceManager = borrow_resource_manager!(self.collectible_nft_resource_address);
-            //     collectible_member_resource_manager.get_non_fungible_data(&key)
-            // });
+            // Get the ID of the Collectible Proof
+            let collectible_member_proof_id = collectible_member_resource_address.non_fungible::<CollectibleMember>().id();
 
-            // self.collected_xrd.put(payment.take(nft_data.price));
+            // Check if a valid Collectible Member Proof has been provided
+            assert!(self.collectible_members.contains_key(&collectible_member_proof_id), "Invalid badge provided");
 
-            // let nft = self.collectible_nfts.take_non_fungible(&key);
+            // Get the collectible nft data
+            let mut nft_data: CollectibleNft = self.collectible_minter.authorize(|| {
+                let collectible_member_resource_manager: &ResourceManager = borrow_resource_manager!(self.collectible_nft_resource_address);
+                collectible_member_resource_manager.get_non_fungible_data(&collectible_nft_id)
+            });
 
-            // (nft, payment)
+            // Calculate transaction fee
+            let transaction_fee: Decimal = self.collectible_fee * nft_data.price;
+            
+            // Take transaction fee
+            self.collected_xrd.put(payment.take(transaction_fee));
+
+            // Calculate claimable xrd
+            let claimable_xrd: Decimal = nft_data.price - transaction_fee;
+
+            // Store the claimable xrd
+            self.claimable_xrd.put(payment.take(claimable_xrd));
+
+            // Update the status of the collectible nft
+            nft_data.status = CollectibleStatus::Sold;
+            
+            // Take the collectible nft
+            let nft = self.collectible_nfts.take_non_fungible(&collectible_nft_id);
+
+            // Update the collectible nft
+            self.collectible_minter
+                .authorize(|| nft.non_fungible().update_data(nft_data));
+
+            // Return nft and payment
+            (nft, payment)
         }
     }
 }
