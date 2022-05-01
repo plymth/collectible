@@ -147,6 +147,9 @@ blueprint! {
             // Get the Collectible Proof ID
             let nft_proof_id = nft_proof.non_fungible::<CollectibleProof>().id();
 
+            // Get the Collectible NFT ID
+            let nft_id = nft.non_fungible::<CollectibleNft>().id();
+
             // Create a mapping for Collectible Proof -> Collectible NFT to verify ownership
             self.collectible_proofs.insert(nft_proof_id, nft_id);
 
