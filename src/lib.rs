@@ -45,6 +45,8 @@ blueprint! {
         collectible_proofs: HashMap<NonFungibleId, NonFungibleId>,
         /// A vault that holds all xrd payments received 
         collected_xrd: Vault,
+        /// A vault that holds all claimable xrd
+        claimable_xrd: Vault,
         /// The fee payable when a collectible nft is sold
         collectible_fee: Decimal
     }
@@ -83,6 +85,7 @@ blueprint! {
                 collectible_nfts: Vault::new(collectible_nft_resource_address),
                 collectible_proofs: HashMap::new(),
                 collected_xrd: Vault::new(RADIX_TOKEN),
+                claimable_xrd: Vault::new(RADIX_TOKEN),
                 collectible_fee: dec!("0.025")
             }
             .instantiate()
@@ -160,10 +163,14 @@ blueprint! {
             nft_proof
         }
 
+        /// Returns redeemable collectible nft funds
+        /// 
+        /// # Arguments
+        /// 
+        /// * `collectible_proof` - The collectible proof resource address
         pub fn redeem_funds_for_collectible_nft(
             &mut self,
             collectible_proof: Bucket,
-            key: NonFungibleId,
         ) -> Bucket {
             // Get the ID of the Collectible Proof
             let collectible_proof_id = collectible_proof.non_fungible::<CollectibleProof>().id();
@@ -171,10 +178,13 @@ blueprint! {
             // Check if a valid Collectible Proof has been provided
             assert!(self.collectible_proofs.contains_key(&collectible_proof_id), "Invalid badge provided");
 
+            // Get the collectible nft id
+            let collectible_nf_id: &NonFungibleId = self.collectible_proofs.get(&collectible_proof_id).unwrap();
+
             // Get the Collectible NFT data
             let nft_data: CollectibleNft = self.collectible_minter.authorize(|| {
                 let collectible_member_resource_manager: &ResourceManager = borrow_resource_manager!(self.collectible_nft_resource_address);
-                collectible_member_resource_manager.get_non_fungible_data(&key)
+                collectible_member_resource_manager.get_non_fungible_data(&collectible_nf_id)
             });
 
             // Check the status of the collectible nft
@@ -193,22 +203,29 @@ blueprint! {
         }
 
         #[allow(unused_variables)]
+        /// Returns a collectible nft
+        /// 
+        /// # Arguments
+        /// 
+        /// * `collectible_member_resource_address` - The collectible member resource address
+        /// * `collectible_nft_id` - The collectible nft id
+        /// * `payment` - The xrd resource  address
         pub fn buy_collectible_nft(
             &mut self,
             collectible_member_resource_address: Proof,
-            key: NonFungibleId,
+            collectible_nft_id: NonFungibleId,
             mut payment: Bucket
         ) -> (Bucket, Bucket) {
-            let nft_data: CollectibleNft = self.collectible_minter.authorize(|| {
-                let collectible_member_resource_manager: &ResourceManager = borrow_resource_manager!(self.collectible_nft_resource_address);
-                collectible_member_resource_manager.get_non_fungible_data(&key)
-            });
+            // let nft_data: CollectibleNft = self.collectible_minter.authorize(|| {
+            //     let collectible_member_resource_manager: &ResourceManager = borrow_resource_manager!(self.collectible_nft_resource_address);
+            //     collectible_member_resource_manager.get_non_fungible_data(&key)
+            // });
 
-            self.collected_xrd.put(payment.take(nft_data.price));
+            // self.collected_xrd.put(payment.take(nft_data.price));
 
-            let nft = self.collectible_nfts.take_non_fungible(&key);
+            // let nft = self.collectible_nfts.take_non_fungible(&key);
 
-            (nft, payment)
+            // (nft, payment)
         }
     }
 }
