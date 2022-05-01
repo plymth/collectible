@@ -105,7 +105,7 @@ blueprint! {
         }
 
         #[allow(unused_variables)]
-        /// Returns a new minted collectible nft
+        /// Returns a new collectible nft
         /// 
         /// # Arguments
         /// 
@@ -177,6 +177,7 @@ blueprint! {
                 collectible_member_resource_manager.get_non_fungible_data(&key)
             });
 
+            // Check the status of the collectible nft
             match nft_data.status {
                 CollectibleStatus::Sold => {
                     // Burn the Collectible Proof it the Collectible NFT has been sold
