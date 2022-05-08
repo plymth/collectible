@@ -18,7 +18,7 @@ pub enum CollectibleStatus {
 struct CollectibleNft {
     name: String,
     description: String,
-    image: String,
+    image_url: String,
     price: Decimal,
     status: CollectibleStatus,
 }
@@ -45,7 +45,7 @@ blueprint! {
         collectible_proofs: HashMap<NonFungibleId, NonFungibleId>,
         /// A mapping of collectible member -> collectible member username
         collectible_members: HashMap<NonFungibleId, String>,
-        /// A vault that holds all xrd payments received 
+        /// A vault that holds all xrd payments received
         collected_xrd: Vault,
         /// A vault that holds all claimable xrd
         claimable_xrd: Vault,
@@ -59,25 +59,23 @@ blueprint! {
             let collectible_minter: Bucket = ResourceBuilder::new_fungible()
                 .divisibility(DIVISIBILITY_NONE)
                 .initial_supply(1);
-            
             // Create collectible member resource
             let collectible_member_resource_address: ResourceAddress = ResourceBuilder::new_non_fungible()
                 .metadata("name", "Collectible Membership Badge")
                 .mintable(rule!(require(collectible_minter.resource_address())), LOCKED)
                 .no_initial_supply();
-            
             // Create collectible nft resource
             let collectible_nft_resource_address: ResourceAddress = ResourceBuilder::new_non_fungible()
+                .metadata("name", "Collectible NFT")
                 .mintable(rule!(require(collectible_minter.resource_address())), LOCKED)
+                .updateable_metadata(rule!(require(collectible_minter.resource_address())), LOCKED)
                 .no_initial_supply();
-            
             // Create collectible proof resource
             let collectible_proof_resource_address: ResourceAddress = ResourceBuilder::new_non_fungible()
                 .mintable(rule!(require(collectible_minter.resource_address())), LOCKED)
                 .burnable(rule!(require(collectible_minter.resource_address())), LOCKED)
                 .updateable_non_fungible_data(rule!(require(collectible_minter.resource_address())), LOCKED)
                 .no_initial_supply();
-            
             // Instantiate component
             Self {
                 collectible_minter: Vault::with_bucket(collectible_minter),
@@ -98,20 +96,20 @@ blueprint! {
         /// Returns a collectible member resource badge
         ///
         /// # Arguments
-        /// 
+        ///
         /// * `username` - An alphanumeric string which will be displayed on the user's account
         /// * `avatar` - A valid url string to an image that will be displayed on the user's account
         pub fn create_account(&mut self, username: String, avatar: String) -> Bucket {
             let badge  = self.collectible_minter.authorize(|| {
                 let collectible_member_resource_manager: &ResourceManager = borrow_resource_manager!(self.collectible_member_resource_address);
-                collectible_member_resource_manager.mint_non_fungible(&NonFungibleId::random(), CollectibleMember{ username, avatar })
+                collectible_member_resource_manager.mint_non_fungible(&NonFungibleId::random(), CollectibleMember{ username: username.to_string(), avatar })
             });
 
             // Get the badge id
             let badge_id = badge.non_fungible::<CollectibleMember>().id();
 
             // Add new member to collectible member hashmap
-            self.collectible_members.insert(badge_id, username);
+            self.collectible_members.insert(badge_id, username.to_string());
 
             // Return membership badge
             badge
@@ -119,26 +117,26 @@ blueprint! {
 
         #[allow(unused_variables)]
         /// Returns a new collectible nft
-        /// 
+        ///
         /// # Arguments
-        /// 
+        ///
         /// * `collectible_member_resource_address` - The collectible member resource address
         /// * `name` - The name of the collectible nft
         /// * `description` - A description of the collectible nft
-        /// * `image` - A url to an image that represents the collectible nft
+        /// * `image_url` - A url to an image that represents the collectible nft
         /// * `price` - The price of the collectible nft
         pub fn mint_collectible_nft(
             &mut self,
             collectible_member_resource_address: Proof,
             name: String,
             description: String,
-            image: String,
+            image_url: String,
             price: Decimal
         ) -> Bucket {
             // Mint a new Collectible NFT
             let nft = self.collectible_minter.authorize(|| {
                 let collectible_nft_resource_manager: &ResourceManager = borrow_resource_manager!(self.collectible_nft_resource_address);
-                collectible_nft_resource_manager.mint_non_fungible(&NonFungibleId::random(), CollectibleNft{ name, description, image, price, status: CollectibleStatus::Available })
+                collectible_nft_resource_manager.mint_non_fungible(&NonFungibleId::random(), CollectibleNft{ name, description, image_url, price, status: CollectibleStatus::Available })
             });
 
             // Get the Collectible NFT ID
@@ -174,9 +172,9 @@ blueprint! {
         }
 
         /// Returns redeemable collectible nft funds
-        /// 
+        ///
         /// # Arguments
-        /// 
+        ///
         /// * `collectible_proof` - The collectible proof resource address
         pub fn redeem_funds_for_collectible_nft(
             &mut self,
@@ -214,9 +212,9 @@ blueprint! {
 
         #[allow(unused_variables)]
         /// Returns a collectible nft
-        /// 
+        ///
         /// # Arguments
-        /// 
+        ///
         /// * `collectible_member_resource_address` - The collectible member resource address
         /// * `collectible_nft_id` - The collectible nft id
         /// * `payment` - The xrd resource  address
@@ -240,7 +238,6 @@ blueprint! {
 
             // Calculate transaction fee
             let transaction_fee: Decimal = self.collectible_fee * nft_data.price;
-            
             // Take transaction fee
             self.collected_xrd.put(payment.take(transaction_fee));
 
@@ -252,7 +249,6 @@ blueprint! {
 
             // Update the status of the collectible nft
             nft_data.status = CollectibleStatus::Sold;
-            
             // Take the collectible nft
             let nft = self.collectible_nfts.take_non_fungible(&collectible_nft_id);
 
