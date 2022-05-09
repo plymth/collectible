@@ -150,7 +150,7 @@ blueprint! {
                 let collectible_proof_resource_manager: &ResourceManager = borrow_resource_manager!(self.collectible_proof_resource_address);
 
                 // Calculate the claimable xrd
-                let claimable_xrd: Decimal = self.collectible_fee * nft_data.price;
+                let claimable_xrd: Decimal = nft_data.price;
 
                 collectible_proof_resource_manager.mint_non_fungible(&NonFungibleId::random(), CollectibleProof{ collectible_nft_id: nft_id, claimable_xrd })
             });
@@ -242,7 +242,7 @@ blueprint! {
             self.collected_xrd.put(payment.take(transaction_fee));
 
             // Calculate claimable xrd
-            let claimable_xrd: Decimal = nft_data.price - transaction_fee;
+            let claimable_xrd: Decimal = nft_data.price;
 
             // Store the claimable xrd
             self.claimable_xrd.put(payment.take(claimable_xrd));
